@@ -4,7 +4,7 @@
   "description": "basic_blog",
   "main": "main.js",
   "scripts": {
-    "start": "node app",
+    "start": "node main",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
