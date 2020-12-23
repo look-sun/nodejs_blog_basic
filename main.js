@@ -7,6 +7,12 @@ const sanitizeHtml = require('sanitize-html');
 const { html } = require('./lib/templates.js');
 const path = require('path');
 const qs = require('querystring');
+const bodyParser = require('body-parser');
+
+// parse application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded({ extended: false }));
+// parse application/json
+// app.use(bodyParse.json());
 
 app.get('/', (req, res) => {
   fs.readdir('./data', (error, filelist)=>{  // 파일 읽어오기
@@ -68,33 +74,26 @@ app.get('/create', (req, res)=>{
 });
 
 app.post('/create_process', (req, res)=>{  // post 정보를 받을 때에는 app.get 이 아니라 post로 받아야 한다.
-  var body = '';
-  req.on('data', (data)=>{
-    body += data;
-
-    // Too much POST data, kill the connection!
-    // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
-    if (body.length > 1e6)  // 너무 용량이 큰 글은 거부
-      req.connection.destroy();
-  });
-  req.on('end', ()=>{
-    var post = qs.parse(body);
+  // Too much POST data, kill the connection!
+  // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
+  if (req.body.length > 1e6)  // 너무 용량이 큰 글은 거부
+    req.connection.destroy();
+    
+  var post = req.body;
     // console.log(post.title);
     // console.log(post.description);
     var title = post.title;
     var description = post.description;
 
     fs.writeFile(`data/${title}`, description, 'utf8', (err)=>{
-      res.writeHead(302, {location: `/page/${title}`});
-      res.end();
+      res.redirect(`/page/${title}`);
     });
-  });
 });
 
 app.get('/update/:pageId', (req, res)=>{
-  fs.readdir('./data/', (error, filelist)=>{
+  fs.readdir('./data/', (err, filelist)=>{
     var filterdId = path.parse(req.params.pageId).base;
-    fs.readFile(`data/${filterdId}`, 'utf8', (err, description)=>{
+    fs.readFile(`data/${filterdId}`, 'utf8', (error, description)=>{
       var list = templates.list(filelist);
       var title = req.params.pageId;
       var body = `
@@ -114,31 +113,36 @@ app.get('/update/:pageId', (req, res)=>{
 });
 
 app.post('/update_process', (req, res)=>{
-  var body = '';
-      req.on('data', function(data) {
-        body += data;
+  // Too much POST data, kill the connection!
+  // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
+  if (req.body.length > 1e6)  // 너무 용량이 큰 글은 거부
+    req.connection.destroy();
 
-        // Too much POST data, kill the connection!
-        // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
-        if (body.length > 1e6)  // 너무 용량이 큰 글은 거부
-          req.connection.destroy();
-      });
-      req.on('end', function() {
-        var post = qs.parse(body);
-        // console.log(post.title);
-        // console.log(post.description);
-        var id = post.id;
-        var title = post.title;
-        var description = post.description;
-        fs.rename(`data/${id}`, `data/${title}`, function(err) {
-          fs.writeFile(`data/${title}`, description, 'utf8', function(err) {
-            res.writeHead(302, {location: `/page/${title}`});
-            res.end();
-          });
-        });
-        console.log(post);
-      });
+  var post = req.body;
+  // console.log(post.title);
+  // console.log(post.description);
+  var id = post.id;
+  var title = post.title;
+  var description = post.description;
+  fs.rename(`data/${id}`, `data/${title}`, (err)=>{
+    fs.writeFile(`data/${title}`, description, 'utf8', (error)=>{
+      res.redirect(`/page/${title}`);
+    });
+  });
+  console.log(post);
 });
+
+app.post('/delete_process', (req, res)=>{
+  var post = req.body;
+  // console.log(post.title);
+  // console.log(post.description);
+  // var id = post.id;
+  var filterdId = path.parse(post.id).base;
+    fs.unlink(`data/${filterdId}`, (err)=>{
+    res.redirect('/');
+  });
+  console.log(post);
+  });
 
 app.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`)
