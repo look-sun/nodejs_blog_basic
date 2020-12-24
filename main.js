@@ -8,31 +8,45 @@ const { html } = require('./lib/templates.js');
 const path = require('path');
 const qs = require('querystring');
 const bodyParser = require('body-parser');
+const compression = require('compression');
 
+app.use(express.static('public'));  // public 디렉토리 안에서 파일을 찾겠다.
 // parse application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({ extended: false }));
 // parse application/json
 // app.use(bodyParse.json());
+app.use(compression());  // 파일을 압축하는 미들웨어
+app.get('*', (req, res, next)=>{  // use가 아닌 get으로 했기 때문에 app.get()으로 들어오는 요청에만 이것이 적용된다.
+  fs.readdir('./data', (error, filelist)=>{
+    req.list = filelist;
+    next();
+  });
+});
 
 app.get('/', (req, res) => {
-  fs.readdir('./data', (error, filelist)=>{  // 파일 읽어오기
+  var title = 'Hello!';
+  var description = 'Welcome to in my web-site';
+  var body = `
+  <h2>${title}
+  <img src="/images/idea.jpg" style="width:300px; display:block; margin-top:10px;">
+  </h2>${description}
+  `;
+  //<span>Photo by <a href="https://unsplash.com/@jdiegoph?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText">Diego PH</a> on <a href="https://unsplash.com/s/photos/blog?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText">Unsplash</a></span>
+  var list = templates.list(req.list);
+  var control = `<a href="/create">create</a>`;
+  var template = templates.html(title, list, body, control);
 
-    var title = 'Hello!';
-    var description = 'Welcome to in my web-site';
-    var body = `<h2>${title}</h2>${description}`;
-    var list = templates.list(filelist);
-    var control = `<a href="/create">create</a>`;
-    var template = templates.html(title, list, body, control);
+  res.send(template);
+});
 
-    res.send(template);
-  });
-})
-
-app.get('/page/:pageId', (req, res)=>{
-  fs.readdir('./data', (error, filelist)=>{
-    var filterdId = path.parse(req.params.pageId).base;
-    fs.readFile(`data/${filterdId}`, 'utf8', (err, description)=>{
-      var list = templates.list(filelist);
+app.get('/page/:pageId', (req, res, next)=>{
+  var filterdId = path.parse(req.params.pageId).base;
+  fs.readFile(`data/${filterdId}`, 'utf8', (err, description)=>{
+    if(err){
+      next(err);
+    }
+    else{
+      var list = templates.list(req.list);
       var title = req.params.pageId;
       var sanitizedTitle = sanitizeHtml(title);
       var sanitizedDescription = sanitizeHtml(description, ()=>{
@@ -49,28 +63,25 @@ app.get('/page/:pageId', (req, res)=>{
       var template = templates.html(sanitizedTitle, list, body, control);
 
       res.send(template);
-    });
+    }
   });
 });
 
 app.get('/create', (req, res)=>{
-  fs.readdir('./data/', (error, filelist)=>{
+  var title = 'WEB - create';
+  var body = `
+  <form action="/create_process" method="POST">
+    <p><input name="title" type="text" placeholder="title"></p>
+    <p><textarea name="description" placeholder="description"></textarea></p>
+    <p><input type="submit"></p>
+  </form>
 
-    var title = 'WEB - create';
-    var body = `
-    <form action="/create_process" method="POST">
-      <p><input name="title" type="text" placeholder="title"></p>
-      <p><textarea name="description" placeholder="description"></textarea></p>
-      <p><input type="submit"></p>
-    </form>
+  `;
+  var list = templates.list(req.list);
+  var control = '';
+  var template = templates.html(title, list, body, control);
 
-    `;
-    var list = templates.list(filelist);
-    var control = '';
-    var template = templates.html(title, list, body, control);
-
-    res.send(template);
-  });
+  res.send(template);
 });
 
 app.post('/create_process', (req, res)=>{  // post 정보를 받을 때에는 app.get 이 아니라 post로 받아야 한다.
@@ -91,26 +102,24 @@ app.post('/create_process', (req, res)=>{  // post 정보를 받을 때에는 ap
 });
 
 app.get('/update/:pageId', (req, res)=>{
-  fs.readdir('./data/', (err, filelist)=>{
-    var filterdId = path.parse(req.params.pageId).base;
-    fs.readFile(`data/${filterdId}`, 'utf8', (error, description)=>{
-      var list = templates.list(filelist);
-      var title = req.params.pageId;
-      var body = `
-      <form action="/update_process" method="POST">
-        <input name="id" type="hidden" value="${title}">
-        <p><input name="title" type="text" placeholder="title" value="${title}"></p>
-        <p><textarea name="description" placeholder="description">${description}</textarea></p>
-        <p><input type="submit"></p>
-      </form>
-      `;
-      var control = `<a href="/create">create</a>`;
-      var template = templates.html(title, list, body, control);
+  var filterdId = path.parse(req.params.pageId).base;
+  fs.readFile(`data/${filterdId}`, 'utf8', (error, description)=>{
+    var list = templates.list(req.list);
+    var title = req.params.pageId;
+    var body = `
+    <form action="/update_process" method="POST">
+      <input name="id" type="hidden" value="${title}">
+      <p><input name="title" type="text" placeholder="title" value="${title}"></p>
+      <p><textarea name="description" placeholder="description">${description}</textarea></p>
+      <p><input type="submit"></p>
+    </form>
+    `;
+    var control = `<a href="/create">create</a>`;
+    var template = templates.html(title, list, body, control);
 
-      res.send(template);
-    });
-  }); 
-});
+    res.send(template);
+  });
+}); 
 
 app.post('/update_process', (req, res)=>{
   // Too much POST data, kill the connection!
@@ -142,9 +151,18 @@ app.post('/delete_process', (req, res)=>{
     res.redirect('/');
   });
   console.log(post);
-  });
+});
 
-app.listen(port, () => {
+app.use((req, res, next)=>{
+  res.status(404).send('Sorry cont find that!');
+});
+
+app.use((err, req, res, next)=>{
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
+
+app.listen(port, ()=>{
   console.log(`Example app listening at http://localhost:${port}`)
 });
 /* 
