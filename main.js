@@ -2,14 +2,13 @@ const express = require('express')
 const app = express()
 const port = 80
 const fs = require('fs');
-const templates = require('./lib/templates.js');
-const sanitizeHtml = require('sanitize-html');
-const { html } = require('./lib/templates.js');
-const path = require('path');
-const qs = require('querystring');
 const bodyParser = require('body-parser');
 const compression = require('compression');
+const blogRouter = require('./routes/blog');
+const indexRouter = require('./routes/index')
+const helmet = require('helmet');
 
+app.use(helmet());
 app.use(express.static('public'));  // public 디렉토리 안에서 파일을 찾겠다.
 // parse application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -23,135 +22,9 @@ app.get('*', (req, res, next)=>{  // use가 아닌 get으로 했기 때문에 ap
   });
 });
 
-app.get('/', (req, res) => {
-  var title = 'Hello!';
-  var description = 'Welcome to in my web-site';
-  var body = `
-  <h2>${title}
-  <img src="/images/idea.jpg" style="width:300px; display:block; margin-top:10px;">
-  </h2>${description}
-  `;
-  //<span>Photo by <a href="https://unsplash.com/@jdiegoph?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText">Diego PH</a> on <a href="https://unsplash.com/s/photos/blog?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText">Unsplash</a></span>
-  var list = templates.list(req.list);
-  var control = `<a href="/create">create</a>`;
-  var template = templates.html(title, list, body, control);
+app.use('/', indexRouter);
 
-  res.send(template);
-});
-
-app.get('/page/:pageId', (req, res, next)=>{
-  var filterdId = path.parse(req.params.pageId).base;
-  fs.readFile(`data/${filterdId}`, 'utf8', (err, description)=>{
-    if(err){
-      next(err);
-    }
-    else{
-      var list = templates.list(req.list);
-      var title = req.params.pageId;
-      var sanitizedTitle = sanitizeHtml(title);
-      var sanitizedDescription = sanitizeHtml(description, ()=>{
-        allowedTags: ['h1', 'h2']
-      });
-      var body = `<h2>${sanitizedTitle}</h2>${sanitizedDescription}`;
-      var control = `
-        <a href="/create">create</a>
-        <a href="/update/${sanitizedTitle}">update</a>
-        <form action="/delete_process" method="POST">
-          <input type="hidden" name="id" value="${sanitizedTitle}">
-          <input type="submit" value"삭제">
-        </form>`;
-      var template = templates.html(sanitizedTitle, list, body, control);
-
-      res.send(template);
-    }
-  });
-});
-
-app.get('/create', (req, res)=>{
-  var title = 'WEB - create';
-  var body = `
-  <form action="/create_process" method="POST">
-    <p><input name="title" type="text" placeholder="title"></p>
-    <p><textarea name="description" placeholder="description"></textarea></p>
-    <p><input type="submit"></p>
-  </form>
-
-  `;
-  var list = templates.list(req.list);
-  var control = '';
-  var template = templates.html(title, list, body, control);
-
-  res.send(template);
-});
-
-app.post('/create_process', (req, res)=>{  // post 정보를 받을 때에는 app.get 이 아니라 post로 받아야 한다.
-  // Too much POST data, kill the connection!
-  // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
-  if (req.body.length > 1e6)  // 너무 용량이 큰 글은 거부
-    req.connection.destroy();
-    
-  var post = req.body;
-    // console.log(post.title);
-    // console.log(post.description);
-    var title = post.title;
-    var description = post.description;
-
-    fs.writeFile(`data/${title}`, description, 'utf8', (err)=>{
-      res.redirect(`/page/${title}`);
-    });
-});
-
-app.get('/update/:pageId', (req, res)=>{
-  var filterdId = path.parse(req.params.pageId).base;
-  fs.readFile(`data/${filterdId}`, 'utf8', (error, description)=>{
-    var list = templates.list(req.list);
-    var title = req.params.pageId;
-    var body = `
-    <form action="/update_process" method="POST">
-      <input name="id" type="hidden" value="${title}">
-      <p><input name="title" type="text" placeholder="title" value="${title}"></p>
-      <p><textarea name="description" placeholder="description">${description}</textarea></p>
-      <p><input type="submit"></p>
-    </form>
-    `;
-    var control = `<a href="/create">create</a>`;
-    var template = templates.html(title, list, body, control);
-
-    res.send(template);
-  });
-}); 
-
-app.post('/update_process', (req, res)=>{
-  // Too much POST data, kill the connection!
-  // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
-  if (req.body.length > 1e6)  // 너무 용량이 큰 글은 거부
-    req.connection.destroy();
-
-  var post = req.body;
-  // console.log(post.title);
-  // console.log(post.description);
-  var id = post.id;
-  var title = post.title;
-  var description = post.description;
-  fs.rename(`data/${id}`, `data/${title}`, (err)=>{
-    fs.writeFile(`data/${title}`, description, 'utf8', (error)=>{
-      res.redirect(`/page/${title}`);
-    });
-  });
-  console.log(post);
-});
-
-app.post('/delete_process', (req, res)=>{
-  var post = req.body;
-  // console.log(post.title);
-  // console.log(post.description);
-  // var id = post.id;
-  var filterdId = path.parse(post.id).base;
-    fs.unlink(`data/${filterdId}`, (err)=>{
-    res.redirect('/');
-  });
-  console.log(post);
-});
+app.use('/blog', blogRouter);
 
 app.use((req, res, next)=>{
   res.status(404).send('Sorry cont find that!');
