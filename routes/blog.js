@@ -22,7 +22,7 @@ router.get('/page/:pageId', (req, res, next)=>{
        var control = `
          <a href="/blog/create">create</a>
          <a href="/blog/update/${sanitizedTitle}">update</a>
-         <form action="/delete_process" method="POST">
+         <form action="/blog/delete_process" method="POST">
            <input type="hidden" name="id" value="${sanitizedTitle}">
            <input type="submit" value"삭제">
          </form>`;
