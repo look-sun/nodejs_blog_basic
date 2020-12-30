@@ -56,14 +56,14 @@ router.post('/create_process', (req, res)=>{  // post 정보를 받을 때에는
     req.connection.destroy();
     
   var post = req.body;
-    // console.log(post.title);
-    // console.log(post.description);
-    var title = post.title;
-    var description = post.description;
-  
-    fs.writeFile(`data/${title}`, description, 'utf8', (err)=>{
-      res.redirect(`/blog/page/${title}`);
-    });
+  // console.log(post.title);
+  // console.log(post.description);
+  var title = post.title;
+  var description = post.description;
+
+  fs.writeFile(`data/${title}`, description, 'utf8', (err)=>{
+    res.redirect(`/blog/page/${title}`);
+  });
 });
   
 router.get('/update/:pageId', (req, res)=>{
