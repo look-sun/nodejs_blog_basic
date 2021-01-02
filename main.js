@@ -17,7 +17,7 @@ var app = http.createServer(function(request,response){
     var pathname = url.parse(_url, true).pathname;
     if(pathname === '/'){
       if(queryData.id === undefined){
-        db.query(`SELECT * FROM TOPIC`, (error, topics)=>{
+        db.query(`SELECT * FROM topics`, (error, topics)=>{
           var title = 'Welcome';
           var description = 'Hello, Node.js';
           var list = template.list(topics);
@@ -29,9 +29,9 @@ var app = http.createServer(function(request,response){
           response.end(html);
         });
       } else {
-        db.query(`SELECT * FROM TOPIC`, (error, topics)=>{
+        db.query(`SELECT * FROM topics`, (error, topics)=>{
           if(error) throw error;
-          db.query(`SELECT * FROM TOPIC WHERE id=?`, [queryData.id], (err, topic)=>{
+          db.query(`SELECT * FROM topics LEFT JOIN author ON topics.author_id=author.id WHERE topics.id=?`, [queryData.id], (err, topic)=>{
             if(err) throw err;
             var title = `${topic[0].title}`;
             var sanitizedTitle = sanitizeHtml(title);
@@ -39,9 +39,10 @@ var app = http.createServer(function(request,response){
             var sanitizedDescription = sanitizeHtml(description, {
               allowedTags:['h1']
             });
+            console.log(topic)
             var list = template.list(topics);
             var html = template.HTML(title, list,
-              `<h2>${sanitizedTitle}</h2>${sanitizedDescription}`,
+              `<h2>${sanitizedTitle}</h2>${sanitizedDescription}<p>by ${topic[0].name}</p>`,
               ` <a href="/create">create</a>
                 <a href="/update?id=${queryData.id}">update</a>
                 <form action="delete_process" method="post">
@@ -55,7 +56,7 @@ var app = http.createServer(function(request,response){
         });
       }
     } else if(pathname === '/create'){
-      db.query(`SELECT * FROM TOPIC`, (error, topics)=>{
+      db.query(`SELECT * FROM topics`, (error, topics)=>{
         var title = 'Create';
         var list = template.list(topics);
         var body = `<form action="/create_process" method="post">
@@ -81,17 +82,17 @@ var app = http.createServer(function(request,response){
       request.on('end', function(){
           var post = qs.parse(body);          
           db.query(
-            `INSERT INTO topic (title, description, created, author) VALUES (?, ?, NOW(), ?)`, 
-            [post.title, post.description, "looksun"], (err, result)=>{
+            `INSERT INTO topics (title, description, created, author_id) VALUES (?, ?, NOW(), ?)`, 
+            [post.title, post.description, 1], (err, result)=>{
               if(err) throw err;
               response.writeHead(302, {Location: `/?id=${result.insertId}`});
               response.end();
             });
       });
     } else if(pathname === '/update'){
-      db.query('SELECT * FROM topic', (error, topics)=>{
+      db.query('SELECT * FROM topics', (error, topics)=>{
         if(error) throw error;
-        db.query(`SELECT * FROM TOPIC WHERE id=?`, [queryData.id], (err, topic)=>{
+        db.query(`SELECT * FROM topics WHERE id=?`, [queryData.id], (err, topic)=>{
           if(err) throw err;
           var list = template.list(topics);
           var html = template.HTML(topic[0].title, list,
@@ -121,8 +122,8 @@ var app = http.createServer(function(request,response){
       request.on('end', function(){
           var post = qs.parse(body);
           db.query(
-            `UPDATE topic SET title=?, description=?, author='looksun' WHERE id=?`, 
-            [post.title, post.description, post.id], (error, result)=>{
+            `UPDATE topics SET title=?, description=?, author_id=? WHERE id=?`, 
+            [post.title, post.description, 1,post.id], (error, result)=>{
               if(error) throw error;
               response.writeHead(302, {Location: `/?id=${post.id}`});
               response.end();
@@ -135,7 +136,7 @@ var app = http.createServer(function(request,response){
       });
       request.on('end', function(){
           var post = qs.parse(body);
-          db.query(`DELETE FROM topic WHERE id=?`, [post.id], (error, result)=>{
+          db.query(`DELETE FROM topics WHERE id=?`, [post.id], (error, result)=>{
             if(error) throw error;
             response.writeHead(302, {Location: `/`});
             response.end();
