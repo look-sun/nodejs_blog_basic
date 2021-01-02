@@ -79,20 +79,21 @@ var app = http.createServer(function(request,response){
         });
       }
     } else if(pathname === '/create'){
-      fs.readdir('./data', function(error, filelist){
-        var title = 'WEB - create';
-        var list = template.list(filelist);
-        var html = template.HTML(title, list, `
-          <form action="/create_process" method="post">
-            <p><input type="text" name="title" placeholder="title"></p>
-            <p>
-              <textarea name="description" placeholder="description"></textarea>
-            </p>
-            <p>
-              <input type="submit">
-            </p>
-          </form>
-        `, '');
+      db.query(`SELECT * FROM TOPIC`, (error, topics)=>{
+        var title = 'Create';
+        var list = template.list(topics);
+        var body = `<form action="/create_process" method="post">
+        <p><input type="text" name="title" placeholder="title"></p>
+        <p>
+          <textarea name="description" placeholder="description"></textarea>
+        </p>
+        <p>
+          <input type="submit">
+        </p>
+      </form>`;
+        var html = template.HTML(title, list, body,
+          `<a href="/create">create</a>`
+        );
         response.writeHead(200);
         response.end(html);
       });
@@ -102,13 +103,14 @@ var app = http.createServer(function(request,response){
           body = body + data;
       });
       request.on('end', function(){
-          var post = qs.parse(body);
-          var title = post.title;
-          var description = post.description;
-          fs.writeFile(`data/${title}`, description, 'utf8', function(err){
-            response.writeHead(302, {Location: `/?id=${title}`});
-            response.end();
-          })
+          var post = qs.parse(body);          
+          db.query(
+            `INSERT INTO topic (title, description, created, author) VALUES (?, ?, NOW(), ?)`, 
+            [post.title, post.description, "looksun"], (err, result)=>{
+              if(err) throw err;
+              response.writeHead(302, {Location: `/?id=${result.insertId}`});
+              response.end();
+            });
       });
     } else if(pathname === '/update'){
       fs.readdir('./data', function(error, filelist){
